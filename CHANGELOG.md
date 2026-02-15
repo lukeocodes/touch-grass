@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/lukeocodes/touch-grass/compare/v1.0.0...v1.0.1) (2026-02-15)
+
+
+### Bug Fixes
+
+* **ci:** merge publish jobs into release-please workflow ([36432a1](https://github.com/lukeocodes/touch-grass/commit/36432a1de025f22bfa0dd6118edeb9f3f0d71fec))
+
 ## 1.0.0 (2026-02-15)
 
 

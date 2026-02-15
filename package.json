@@ -1,6 +1,6 @@
 {
   "name": "touch-grass",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Browser extension that turns GitHub contribution graphs into animated grass fields",
   "private": true,
   "repository": {
