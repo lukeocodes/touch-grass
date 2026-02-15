@@ -14,29 +14,26 @@
     grid: '.ContributionCalendar-grid',
   };
 
-  const BLADE_CONFIG = [
-    // level 0: soil, no blades
-    { count: [0, 0], height: [0, 0], thickness: [0, 0] },
-    // level 1: sparse, short
-    { count: [1, 1], height: [0.25, 0.35], thickness: [1, 1] },
-    // level 2: moderate
-    { count: [3, 4], height: [0.40, 0.55], thickness: [1, 1.5] },
-    // level 3: lush
-    { count: [5, 7], height: [0.55, 0.75], thickness: [1, 2] },
-    // level 4: dense, tall
-    { count: [8, 12], height: [0.70, 1.0], thickness: [1.5, 2] },
+  const MAX_BLADE_HEIGHT = 20;
+
+  // Tuft = one draw call containing multiple blades
+  // All levels get same tuft count — height and color differentiate them
+  const TUFT_CONFIG = [
+    // level 0: bare soil
+    { tufts: [0, 0], bladesPerTuft: 0, height: [0, 0] },
+    // level 1: short dry stubble
+    { tufts: [5, 7], bladesPerTuft: 5, height: [2, 5] },
+    // level 2: short grass
+    { tufts: [5, 7], bladesPerTuft: 5, height: [5, 10] },
+    // level 3: healthy growth
+    { tufts: [5, 7], bladesPerTuft: 7, height: [10, 16] },
+    // level 4: tall lush grass
+    { tufts: [5, 7], bladesPerTuft: 9, height: [14, 20] },
   ];
 
-  const FALLBACK_COLORS = [
-    'rgb(22, 27, 34)',    // level 0 (soil bg)
-    'rgb(0, 109, 50)',    // level 1
-    'rgb(38, 166, 65)',   // level 2
-    'rgb(57, 211, 83)',   // level 3
-    'rgb(57, 211, 83)',   // level 4
-  ];
-
-  const SOIL_COLOR = '#3d2b1f';
-  const SOIL_SPECKLE = '#5c4033';
+  const GRAPH_BG = '#3d2b1f';
+  const SOIL_COLOR = '#6b4c3b';
+  const SOIL_SPECKLE = '#7d5e4e';
   const MOUSE_RADIUS = 30;
   const MOUSE_SPRING = 0.15;
 
@@ -96,13 +93,21 @@
 
   // ── Color Extraction ───────────────────────────────────────────────────
 
+  const FALLBACK_COLORS = [
+    null,                 // level 0 uses soil
+    'rgb(0, 109, 50)',
+    'rgb(38, 166, 65)',
+    'rgb(57, 211, 83)',
+    'rgb(57, 211, 83)',
+  ];
+
   function extractLevelColors(cells) {
     const colors = [...FALLBACK_COLORS];
-    const found = [false, false, false, false, false];
+    const found = [true, false, false, false, false]; // skip level 0
 
     for (const cell of cells) {
       const level = parseInt(cell.getAttribute('data-level'), 10);
-      if (level >= 0 && level <= 4 && !found[level]) {
+      if (level >= 1 && level <= 4 && !found[level]) {
         const bg = getComputedStyle(cell).backgroundColor;
         if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
           colors[level] = bg;
@@ -115,134 +120,176 @@
     return colors;
   }
 
-  // ── Blade Generation ──────────────────────────────────────────────────
+  // ── Tuft Generation ─────────────────────────────────────────────────
 
-  function generateBlades(cells, containerRect, colors) {
-    const allBlades = [];
-    const soilRects = [];
+  function generateTufts(cells, containerRect, colors, yOffset) {
+    const allTufts = [];
+    const cellRects = [];
 
     for (const cell of cells) {
       const level = parseInt(cell.getAttribute('data-level'), 10) || 0;
       const rect = cell.getBoundingClientRect();
       const cx = rect.left - containerRect.left;
-      const cy = rect.top - containerRect.top;
+      const cy = rect.top - containerRect.top + yOffset;
       const cw = rect.width;
       const ch = rect.height;
 
-      if (level === 0) {
-        soilRects.push({ x: cx, y: cy, w: cw, h: ch });
-        continue;
-      }
+      cellRects.push({
+        x: cx, y: cy, w: cw, h: ch,
+        level,
+        color: level === 0 ? SOIL_COLOR : colors[level],
+      });
 
-      const config = BLADE_CONFIG[level];
-      const numBlades = randInt(config.count[0], config.count[1]);
+      if (level === 0) continue;
 
-      for (let i = 0; i < numBlades; i++) {
-        const heightFrac = rand(config.height[0], config.height[1]);
-        const bladeHeight = ch * heightFrac;
-        const thickness = rand(config.thickness[0], config.thickness[1]);
-        const x = cx + rand(1, cw - 1);
-        const baseY = cy + ch;
+      const config = TUFT_CONFIG[level];
+      const numTufts = randInt(config.tufts[0], config.tufts[1]);
 
-        allBlades.push({
-          x,
-          baseY,
-          height: bladeHeight,
-          thickness,
+      for (let t = 0; t < numTufts; t++) {
+        // Tuft anchor position — scattered across cell
+        const anchorX = cx + rand(0, cw);
+        const anchorY = cy + rand(0, ch * 0.4);
+
+        // Lean based on position within cell
+        const posInCell = (anchorX - cx) / cw;
+        let baseLean;
+        if (posInCell < 0.3) {
+          const edgeness = 1 - posInCell / 0.3;
+          baseLean = rand(-0.3, -0.1) - edgeness * 0.5;
+        } else if (posInCell > 0.7) {
+          const edgeness = (posInCell - 0.7) / 0.3;
+          baseLean = rand(0.1, 0.3) + edgeness * 0.5;
+        } else {
+          baseLean = rand(-0.2, 0.2);
+        }
+
+        // Pre-compute individual blade offsets within this tuft
+        const blades = [];
+        for (let b = 0; b < config.bladesPerTuft; b++) {
+          blades.push({
+            dx: rand(-2, 2),
+            dy: rand(-1, 1),
+            height: Math.min(rand(config.height[0], config.height[1]), MAX_BLADE_HEIGHT),
+            thickness: rand(0.8, 1.3),
+            leanOffset: rand(-0.15, 0.15),
+          });
+        }
+
+        allTufts.push({
+          x: anchorX,
+          baseY: anchorY,
           color: jitterColor(colors[level], 0.08),
           phaseOffset: rand(0, Math.PI * 2),
-          lean: rand(-0.1, 0.1),
+          lean: baseLean,
           stiffness: rand(0.8, 1.2),
           currentMouseBend: 0,
           targetMouseBend: 0,
+          blades,
         });
       }
     }
 
-    return { blades: allBlades, soilRects };
+    return { tufts: allTufts, cellRects };
   }
 
   // ── Rendering ─────────────────────────────────────────────────────────
 
-  function drawBlade(ctx, blade, windOffset) {
-    const { x, baseY, height, thickness, color, lean, currentMouseBend } = blade;
+  function drawTuft(ctx, tuft, windOffset) {
+    const { x, baseY, color, lean, currentMouseBend, blades } = tuft;
     const totalBend = lean + windOffset + currentMouseBend;
-    const tipX = x + totalBend * height;
-    const tipY = baseY - height;
-    const cpX = x + totalBend * height * 0.5;
-    const cpY = baseY - height * 0.6;
-    const halfT = thickness / 2;
 
+    // Build one compound path for all blades in the tuft
     ctx.beginPath();
-    ctx.moveTo(x - halfT, baseY);
-    ctx.quadraticCurveTo(cpX - halfT * 0.3, cpY, tipX, tipY);
-    ctx.quadraticCurveTo(cpX + halfT * 0.3, cpY, x + halfT, baseY);
-    ctx.closePath();
+    for (const b of blades) {
+      const bx = x + b.dx;
+      const by = baseY + b.dy;
+      const bladeLean = totalBend + b.leanOffset;
+      const tipX = bx + bladeLean * b.height;
+      const tipY = by - b.height;
+      const cpX = bx + bladeLean * b.height * 0.5;
+      const cpY = by - b.height * 0.6;
+      const halfT = b.thickness / 2;
+
+      ctx.moveTo(bx - halfT, by);
+      ctx.quadraticCurveTo(cpX - halfT * 0.3, cpY, tipX, tipY);
+      ctx.quadraticCurveTo(cpX + halfT * 0.3, cpY, bx + halfT, by);
+      ctx.closePath();
+    }
+
+    // Dark stroke for contrast, then fill
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
     ctx.fillStyle = color;
     ctx.fill();
   }
 
-  function drawSoil(ctx, soilRects) {
-    for (const r of soilRects) {
-      ctx.fillStyle = SOIL_COLOR;
+  function drawCells(ctx, cellRects, graphBounds) {
+    // Dark brown fills entire graph area (no white gaps between squares)
+    ctx.fillStyle = GRAPH_BG;
+    ctx.fillRect(graphBounds.x, graphBounds.y, graphBounds.w, graphBounds.h);
+
+    for (const r of cellRects) {
+      // Draw the cell square in its original color
+      ctx.fillStyle = r.color;
       ctx.fillRect(r.x, r.y, r.w, r.h);
 
-      // Texture speckles
-      ctx.fillStyle = SOIL_SPECKLE;
-      const dots = randInt(2, 5);
-      for (let i = 0; i < dots; i++) {
-        const dx = rand(r.x + 1, r.x + r.w - 1);
-        const dy = rand(r.y + 1, r.y + r.h - 1);
-        ctx.fillRect(dx, dy, 1, 1);
+      // Add soil texture speckles for level-0 cells
+      if (r.level === 0) {
+        ctx.fillStyle = SOIL_SPECKLE;
+        const dots = randInt(2, 5);
+        for (let i = 0; i < dots; i++) {
+          const dx = rand(r.x + 1, r.x + r.w - 1);
+          const dy = rand(r.y + 1, r.y + r.h - 1);
+          ctx.fillRect(dx, dy, 1, 1);
+        }
       }
     }
   }
 
   function render(ctx, state) {
-    const { width, height, blades, soilRects } = state;
+    const { width, height, tufts, cellRects, graphBounds } = state;
     ctx.clearRect(0, 0, width, height);
 
-    drawSoil(ctx, soilRects);
+    drawCells(ctx, cellRects, graphBounds);
 
     const t = state.time;
-    for (const blade of blades) {
-      const p = blade.phaseOffset;
-      const s = blade.stiffness;
+    for (const tuft of tufts) {
+      const p = tuft.phaseOffset;
+      const s = tuft.stiffness;
       const wind =
         Math.sin(t * 1.2 + p) * 0.15 / s +
         Math.sin(t * 2.8 + p * 1.3) * 0.06 / s +
         Math.sin(t * 5.1 + p * 0.7) * 0.02 / s;
 
       // Spring mouse bend toward target
-      blade.currentMouseBend += (blade.targetMouseBend - blade.currentMouseBend) * MOUSE_SPRING;
+      tuft.currentMouseBend += (tuft.targetMouseBend - tuft.currentMouseBend) * MOUSE_SPRING;
 
-      drawBlade(ctx, blade, wind);
+      drawTuft(ctx, tuft, wind);
     }
   }
 
   // ── Mouse Interaction ─────────────────────────────────────────────────
 
   function updateMouseInfluence(state, mouseX, mouseY) {
-    for (const blade of state.blades) {
-      const midX = blade.x;
-      const midY = blade.baseY - blade.height * 0.5;
-      const dx = midX - mouseX;
-      const dy = midY - mouseY;
+    for (const tuft of state.tufts) {
+      const dx = tuft.x - mouseX;
+      const dy = tuft.baseY - mouseY;
       const dist = Math.sqrt(dx * dx + dy * dy);
 
       if (dist < MOUSE_RADIUS) {
         const force = (1 - dist / MOUSE_RADIUS) ** 2;
         const direction = dx >= 0 ? 1 : -1;
-        blade.targetMouseBend = direction * force * 0.6;
+        tuft.targetMouseBend = direction * force * 0.6;
       } else {
-        blade.targetMouseBend = 0;
+        tuft.targetMouseBend = 0;
       }
     }
   }
 
   function clearMouseInfluence(state) {
-    for (const blade of state.blades) {
-      blade.targetMouseBend = 0;
+    for (const tuft of state.tufts) {
+      tuft.targetMouseBend = 0;
     }
   }
 
@@ -273,11 +320,14 @@
     }
 
     if (inst.table) {
-      inst.table.style.visibility = '';
+      inst.table.style.opacity = '';
+      inst.table.style.position = '';
+      inst.table.style.zIndex = '';
     }
 
     if (inst.container) {
       inst.container.removeAttribute('data-touch-grass');
+      inst.container.style.overflow = '';
     }
 
     if (inst.intersectionObserver) {
@@ -315,12 +365,25 @@
 
     // Measure container and cells before hiding
     const containerRect = container.getBoundingClientRect();
-    const { blades, soilRects } = generateBlades(cells, containerRect, colors);
 
-    // Create canvas
+    // Headroom for grass to grow above the graph (capped at 20px blades + margin)
+    const headroom = MAX_BLADE_HEIGHT + 5;
+    const { tufts, cellRects } = generateTufts(cells, containerRect, colors, headroom);
+
+    // Compute bounding box of all cells for the dark brown background fill
+    const graphBounds = cellRects.reduce((b, r) => ({
+      x: Math.min(b.x, r.x),
+      y: Math.min(b.y, r.y),
+      r: Math.max(b.r, r.x + r.w),
+      b: Math.max(b.b, r.y + r.h),
+    }), { x: Infinity, y: Infinity, r: -Infinity, b: -Infinity });
+    graphBounds.w = graphBounds.r - graphBounds.x;
+    graphBounds.h = graphBounds.b - graphBounds.y;
+
+    // Create canvas with extra height for headroom
     const dpr = window.devicePixelRatio || 1;
     const w = containerRect.width;
-    const h = containerRect.height;
+    const h = containerRect.height + headroom;
 
     const canvas = document.createElement('canvas');
     canvas.width = w * dpr;
@@ -328,32 +391,36 @@
     canvas.style.width = w + 'px';
     canvas.style.height = h + 'px';
     canvas.style.position = 'absolute';
-    canvas.style.top = '0';
+    canvas.style.top = -headroom + 'px';
     canvas.style.left = '0';
-    canvas.style.pointerEvents = 'auto';
+    canvas.style.pointerEvents = 'none';
     canvas.style.zIndex = '1';
 
     const ctx = canvas.getContext('2d');
     ctx.scale(dpr, dpr);
 
-    // Position container for overlay
+    // Position container for overlay, allow grass to grow above
     const containerStyle = getComputedStyle(container);
     if (containerStyle.position === 'static') {
       container.style.position = 'relative';
     }
+    container.style.overflow = 'visible';
     container.appendChild(canvas);
 
-    // Hide original table
+    // Hide original table visually but keep it interactive for tooltips
     if (table) {
-      table.style.visibility = 'hidden';
+      table.style.opacity = '0';
+      table.style.position = 'relative';
+      table.style.zIndex = '2';
     }
 
     // Animation state
     const state = {
       width: w,
       height: h,
-      blades,
-      soilRects,
+      tufts,
+      cellRects,
+      graphBounds,
       time: 0,
       running: true,
     };
@@ -394,16 +461,16 @@
 
     instance.rafId = requestAnimationFrame(animate);
 
-    // ── Mouse Events ────────────────────────────────────────────────
+    // ── Mouse Events (on container so tooltips still work through the table) ─
 
-    canvas.addEventListener('mousemove', (e) => {
+    container.addEventListener('mousemove', (e) => {
       const rect = canvas.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
       updateMouseInfluence(state, mx, my);
     });
 
-    canvas.addEventListener('mouseleave', () => {
+    container.addEventListener('mouseleave', () => {
       clearMouseInfluence(state);
     });
 
@@ -429,14 +496,14 @@
     // ── Theme Change Detection ──────────────────────────────────────
 
     instance.themeObserver = new MutationObserver(() => {
-      // Re-extract colors and regenerate blades
+      // Re-extract colors (theme changed) and regenerate
       const freshCells = findCells(container);
       if (freshCells.length === 0) return;
       const newColors = extractLevelColors(freshCells);
       const freshContainerRect = container.getBoundingClientRect();
-      const freshData = generateBlades(freshCells, freshContainerRect, newColors);
-      state.blades = freshData.blades;
-      state.soilRects = freshData.soilRects;
+      const freshData = generateTufts(freshCells, freshContainerRect, newColors, headroom);
+      state.tufts = freshData.tufts;
+      state.cellRects = freshData.cellRects;
     });
     instance.themeObserver.observe(document.documentElement, {
       attributes: true,
