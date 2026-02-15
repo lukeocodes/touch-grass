@@ -35,6 +35,11 @@ jobs:
           name: extension-zip
           path: touch-grass.zip
 
+      - name: Attach ZIP to GitHub release
+        run: gh release upload ${{ needs.release-please.outputs.tag_name }} touch-grass.zip --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
+
   publish-chrome:
     needs: build
     runs-on: ubuntu-latest
