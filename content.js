@@ -441,57 +441,66 @@
 
     activeInstance = instance;
 
-    // ── Animation Loop ──────────────────────────────────────────────
+    // ── Reduced Motion ──────────────────────────────────────────────
 
-    let lastTime = performance.now();
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-    function animate(now) {
-      if (!state.running) {
+    if (prefersReducedMotion) {
+      // Render one static frame with no wind or mouse interaction
+      render(ctx, state);
+    } else {
+      // ── Animation Loop ────────────────────────────────────────────
+
+      let lastTime = performance.now();
+
+      function animate(now) {
+        if (!state.running) {
+          instance.rafId = requestAnimationFrame(animate);
+          return;
+        }
+
+        const dt = (now - lastTime) / 1000;
+        lastTime = now;
+        state.time += dt;
+
+        render(ctx, state);
         instance.rafId = requestAnimationFrame(animate);
-        return;
       }
 
-      const dt = (now - lastTime) / 1000;
-      lastTime = now;
-      state.time += dt;
-
-      render(ctx, state);
       instance.rafId = requestAnimationFrame(animate);
+
+      // ── Mouse Events (on container so tooltips still work through the table) ─
+
+      container.addEventListener('mousemove', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        updateMouseInfluence(state, mx, my);
+      });
+
+      container.addEventListener('mouseleave', () => {
+        clearMouseInfluence(state);
+      });
+
+      // ── Visibility / IntersectionObserver ──────────────────────────
+
+      instance.visibilityHandler = () => {
+        state.running = !document.hidden;
+        if (state.running) lastTime = performance.now();
+      };
+      document.addEventListener('visibilitychange', instance.visibilityHandler);
+
+      instance.intersectionObserver = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            state.running = entry.isIntersecting && !document.hidden;
+            if (state.running) lastTime = performance.now();
+          }
+        },
+        { threshold: 0 }
+      );
+      instance.intersectionObserver.observe(canvas);
     }
-
-    instance.rafId = requestAnimationFrame(animate);
-
-    // ── Mouse Events (on container so tooltips still work through the table) ─
-
-    container.addEventListener('mousemove', (e) => {
-      const rect = canvas.getBoundingClientRect();
-      const mx = e.clientX - rect.left;
-      const my = e.clientY - rect.top;
-      updateMouseInfluence(state, mx, my);
-    });
-
-    container.addEventListener('mouseleave', () => {
-      clearMouseInfluence(state);
-    });
-
-    // ── Visibility / IntersectionObserver ────────────────────────────
-
-    instance.visibilityHandler = () => {
-      state.running = !document.hidden;
-      if (state.running) lastTime = performance.now();
-    };
-    document.addEventListener('visibilitychange', instance.visibilityHandler);
-
-    instance.intersectionObserver = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          state.running = entry.isIntersecting && !document.hidden;
-          if (state.running) lastTime = performance.now();
-        }
-      },
-      { threshold: 0 }
-    );
-    instance.intersectionObserver.observe(canvas);
 
     // ── Theme Change Detection ──────────────────────────────────────
 
