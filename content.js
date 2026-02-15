@@ -17,19 +17,21 @@
   const MAX_BLADE_HEIGHT = 20;
 
   // Tuft = one draw call containing multiple blades
-  // All levels get same tuft count — height and color differentiate them
+  // INVERTED: 0 contributions = tall lush grass (touch grass!), 4 = bare soil (busy coding)
   const TUFT_CONFIG = [
-    // level 0: bare soil
-    { tufts: [0, 0], bladesPerTuft: 0, height: [0, 0] },
-    // level 1: short dry stubble
-    { tufts: [5, 7], bladesPerTuft: 5, height: [2, 5] },
-    // level 2: short grass
-    { tufts: [5, 7], bladesPerTuft: 5, height: [5, 10] },
-    // level 3: healthy growth
-    { tufts: [5, 7], bladesPerTuft: 7, height: [10, 16] },
-    // level 4: tall lush grass
+    // level 0: no contributions — tall lush grass (you've been outside!)
     { tufts: [5, 7], bladesPerTuft: 9, height: [14, 20] },
+    // level 1: few contributions — healthy grass
+    { tufts: [5, 7], bladesPerTuft: 7, height: [10, 16] },
+    // level 2: moderate contributions — shorter grass
+    { tufts: [5, 7], bladesPerTuft: 5, height: [5, 10] },
+    // level 3: many contributions — short stubble
+    { tufts: [5, 7], bladesPerTuft: 5, height: [2, 5] },
+    // level 4: most contributions — bare soil with tiny sprouts
+    { tufts: [2, 3], bladesPerTuft: 3, height: [1, 3] },
   ];
+
+  const GRASS_GREEN = 'rgb(57, 211, 83)';
 
   const GRAPH_BG = '#3d2b1f';
   const SOIL_COLOR = '#6b4c3b';
@@ -126,6 +128,15 @@
     const allTufts = [];
     const cellRects = [];
 
+    // Inverted color key: 0 = darkest green, 1 = dark, 2 = mid, 3 = light, 4 = soil
+    const invertedColors = [
+      colors[4] || GRASS_GREEN,  // level 0: darkest green
+      colors[3] || GRASS_GREEN,  // level 1: dark green
+      colors[2] || GRASS_GREEN,  // level 2: mid green
+      colors[1] || GRASS_GREEN,  // level 3: light green
+      SOIL_COLOR,                // level 4: bare soil
+    ];
+
     for (const cell of cells) {
       const level = parseInt(cell.getAttribute('data-level'), 10) || 0;
       const rect = cell.getBoundingClientRect();
@@ -134,13 +145,16 @@
       const cw = rect.width;
       const ch = rect.height;
 
+      const cellColor = invertedColors[level];
+
+      // Also update the actual DOM cell so the grid matches
+      cell.style.backgroundColor = cellColor;
+
       cellRects.push({
         x: cx, y: cy, w: cw, h: ch,
         level,
-        color: level === 0 ? SOIL_COLOR : colors[level],
+        color: cellColor,
       });
-
-      if (level === 0) continue;
 
       const config = TUFT_CONFIG[level];
       const numTufts = randInt(config.tufts[0], config.tufts[1]);
@@ -148,7 +162,7 @@
       for (let t = 0; t < numTufts; t++) {
         // Tuft anchor position — scattered across cell
         const anchorX = cx + rand(0, cw);
-        const anchorY = cy + rand(0, ch * 0.4);
+        const anchorY = cy + ch * 0.7;
 
         // Lean based on position within cell
         const posInCell = (anchorX - cx) / cw;
@@ -175,10 +189,13 @@
           });
         }
 
+        // Grass matches cell color, but brown cells get green sprouts
+        const tuftColor = cellColor === SOIL_COLOR ? (colors[1] || GRASS_GREEN) : cellColor;
+
         allTufts.push({
           x: anchorX,
           baseY: anchorY,
-          color: jitterColor(colors[level], 0.08),
+          color: jitterColor(tuftColor, 0.08),
           phaseOffset: rand(0, Math.PI * 2),
           lean: baseLean,
           stiffness: rand(0.8, 1.2),
@@ -234,8 +251,8 @@
       ctx.fillStyle = r.color;
       ctx.fillRect(r.x, r.y, r.w, r.h);
 
-      // Add soil texture speckles for level-0 cells
-      if (r.level === 0) {
+      // Add soil texture speckles for high-activity cells (they're the bare ones now)
+      if (r.level >= 3) {
         ctx.fillStyle = SOIL_SPECKLE;
         const dots = randInt(2, 5);
         for (let i = 0; i < dots; i++) {
@@ -362,6 +379,14 @@
     const table = container.querySelector(SELECTORS.grid) || container.querySelector('table');
 
     const colors = extractLevelColors(cells);
+
+    // Invert the legend color key (Less → More becomes dark green → brown)
+    for (let i = 0; i <= 4; i++) {
+      const legend = document.querySelector(`#contribution-graph-legend-level-${i}`);
+      if (!legend) continue;
+      const invertedLevel = 4 - i;
+      legend.style.backgroundColor = invertedLevel === 0 ? SOIL_COLOR : (colors[invertedLevel] || GRASS_GREEN);
+    }
 
     // Measure container and cells before hiding
     const containerRect = container.getBoundingClientRect();
