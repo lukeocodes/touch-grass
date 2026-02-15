@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.0](https://github.com/lukeocodes/touch-grass/compare/touch-grass-v1.1.0...touch-grass-v1.2.0) (2026-02-15)
+
+
+### Features
+
+* **ci:** attach extension ZIP to GitHub releases ([e644aa1](https://github.com/lukeocodes/touch-grass/commit/e644aa143cd4258ab937c1bb2c4f57257e7c3344))
+* **grass:** invert intensity and color key ([#6](https://github.com/lukeocodes/touch-grass/issues/6)) ([72bcf91](https://github.com/lukeocodes/touch-grass/commit/72bcf913263b015a95aa8332be469730e759dfba))
+
 ## [1.1.0](https://github.com/lukeocodes/touch-grass/compare/touch-grass-v1.0.1...touch-grass-v1.1.0) (2026-02-15)
 
 
