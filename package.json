@@ -1,0 +1,16 @@
+{
+  "name": "touch-grass",
+  "version": "1.0.0",
+  "description": "Browser extension that turns GitHub contribution graphs into animated grass fields",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lukeocodes/touch-grass.git"
+  },
+  "author": "lukeocodes",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/lukeocodes/touch-grass/issues"
+  },
+  "homepage": "https://github.com/lukeocodes/touch-grass#readme"
+}
