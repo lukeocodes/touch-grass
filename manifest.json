@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "Touch Grass",
+  "version": "1.0.0",
+  "description": "Turns GitHub contribution graphs into animated grass fields",
+  "content_scripts": [
+    {
+      "js": ["content.js"],
+      "matches": ["https://github.com/*"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "icons/icon-16.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  }
+}
