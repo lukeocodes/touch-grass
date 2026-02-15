@@ -6,8 +6,6 @@ Built during the [npmx recharging holiday](https://npmx.dev/recharging) — a we
 
 ![Touch Grass in action](screenshot.png)
 
-<video src="demo.mp4" autoplay loop muted playsinline></video>
-
 ## What it does
 
 - Replaces GitHub's contribution graph squares with animated grass
@@ -41,6 +39,10 @@ Built during the [npmx recharging holiday](https://npmx.dev/recharging) — a we
 1. Download or clone this repo
 2. Run `xcrun safari-web-extension-converter /path/to/touch-grass --app-name "Touch Grass"`
 3. Open the generated Xcode project, build, and enable the extension in Safari preferences
+
+## See it in action
+
+![Touch Grass demo](demo.gif)
 
 ## How it works
 
