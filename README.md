@@ -9,7 +9,9 @@ Built during the [npmx recharging holiday](https://npmx.dev/recharging) — a we
 ## What it does
 
 - Replaces GitHub's contribution graph squares with animated grass
-- Contribution level controls grass height — bare soil for zero, tall lush grass for heavy activity
+- The more you work, the tidier the grass — do too much, you get patches
+- No contributions? Tall, lush dark green grass (you've been outside!)
+- Heavy activity? Bare brown soil with tiny sprouts (busy coding!)
 - Grass sways gently in the wind
 - Mouse interaction bends the grass aside with spring-back physics
 - Dark brown soil fills the grid background, no more white gaps
