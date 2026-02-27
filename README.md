@@ -4,7 +4,7 @@
 
 Built during the [npmx recharging holiday](https://npmx.dev/recharging) — a week-long break (Feb 14-21) where the npmx community shut down to recover from the intense pace of building [npmx.dev](https://npmx.dev). After 160+ contributors, 1.1k+ commits, and 910+ PRs merged, the team earned a rest. Some of us recharged by a cosy fireplace. Others... built a Chrome extension about grass.
 
-![Touch Grass in action](https://github.com/lukeocodes/touch-grass)
+![Touch Grass in action](https://github.com/user-attachments/assets/dfa7ce19-05a0-4309-8026-aa166dc9773f)
 
 ## What it does
 
